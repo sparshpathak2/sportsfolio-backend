@@ -1,11 +1,11 @@
 import express from 'express';
-import dotenv from 'dotenv';
+import "dotenv/config";
 import cors from 'cors';
 import tournamentRoutes from './modules/tournaments/tournament.routes.js';
 import matchRoutes from './modules/matches/match.routes.js';
 import { attachUser } from './middlewares/attachUser.middleware.js';
 
-dotenv.config();
+// dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3003;
