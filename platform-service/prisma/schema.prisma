@@ -1,0 +1,99 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id        String          @id @default(cuid())
+  phone     String          @unique
+  email     String?         @unique
+  name      String?
+
+  profiles  SportProfile[]
+  sessions  Session[]
+
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model Sport {
+  id        String          @id @default(cuid())
+  code      String          @unique // "BADMINTON", "CRICKET", "FOOTBALL"
+  name      String
+
+  profiles  SportProfile[]
+
+  createdAt DateTime        @default(now())
+}
+
+model SportProfile {
+  id        String   @id @default(cuid())
+
+  userId    String
+  sportId   String
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sport     Sport   @relation(fields: [sportId], references: [id])
+
+  // Generic profile fields
+  avatarUrl String?
+  bio       String?
+
+  // Performance metrics (generic)
+  matchesPlayed Int @default(0)
+  wins          Int @default(0)
+  losses        Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, sportId]) // 🔐 ONE profile per sport per user
+  @@index([sportId])
+}
+
+model OTP {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  city      String
+  state     String
+  country   String   @default("India")
+  zipCode   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

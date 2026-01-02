@@ -1,0 +1,283 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SportCode {
+  BADMINTON
+  CRICKET
+  FOOTBALL
+}
+
+enum TournamentStatus {
+  DRAFT
+  PUBLISHED
+  ONGOING
+  COMPLETED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ScheduleType {
+  MANUAL
+  AUTOMATIC
+}
+
+enum GameType {
+  SINGLES
+  DOUBLES
+}
+
+enum TournamentType {
+  KNOCKOUT
+  ROUND_ROBIN
+  LEAGUE
+}
+
+enum AssetType {
+  TOURNAMENT_LOGO
+  TOURNAMENT_BANNER
+}
+
+enum WeekDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+model Tournament {
+  id             String         @id @default(cuid())
+  name           String
+  sportCode      SportCode
+  tournamentType TournamentType
+
+  startDate DateTime
+  endDate   DateTime?
+
+  locationId String // from platform-service
+  status     TournamentStatus @default(DRAFT)
+
+  isPublic Boolean @default(false)
+  entryFee Int     @default(0) // 0 = free
+
+  scheduleType ScheduleType
+  publicJoinCode String? @unique
+
+  rules TournamentRules?
+
+  assets Asset[]
+
+  participants TournamentParticipant[]
+  matches      Match[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sportCode])
+  @@index([status])
+}
+
+model TournamentRules {
+  id           String @id @default(cuid())
+  tournamentId String @unique
+
+  // Play area / courts
+  playAreas                Int
+  matchesPerPlayAreaPerDay Int
+  reportingTimeMinutes     Int
+
+  // Match config
+  partsPerMatch Int // instead of sets
+  gameType      GameType
+
+  // Groups / teams
+  groupsCount   Int?
+  teamsPerGroup Int?
+
+  // Progression
+  enableQuarterFinal Boolean @default(false)
+  enableSemiFinal    Boolean @default(false)
+  enableFinal        Boolean @default(true)
+
+  // Schedule
+  daysOfWeek WeekDay[] // ["MONDAY", "WEDNESDAY", ...]
+
+  extraConfig Json? // cricket overs, football halves etc
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+}
+
+model TournamentParticipant {
+  id           String @id @default(cuid())
+  tournamentId String
+
+  playerId String?
+  teamId   String?
+
+  seed       Int?
+  eliminated Boolean @default(false)
+
+  tournament          Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matchesWon          Match[]            @relation("MatchWinner")
+  matchesParticipated MatchParticipant[]
+  partsWon            MatchPart[]        @relation("MatchPartWinner")
+
+  createdAt DateTime @default(now())
+
+  @@index([tournamentId])
+}
+
+model Team {
+  id        String    @id @default(cuid())
+  name      String
+  sportCode SportCode
+
+  members TeamMember[]
+
+  createdAt DateTime @default(now())
+}
+
+model TeamMember {
+  id       String @id @default(cuid())
+  teamId   String
+  playerId String
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, playerId])
+}
+
+// model Match {
+  // id           String @id @default(cuid())
+  // tournamentId String
+
+  // round       Int?
+  // matchNumber Int?
+
+  // status    MatchStatus @default(SCHEDULED)
+  // startTime DateTime?
+  // endTime   DateTime?
+
+  // winnerParticipantId String?
+  // winnerParticipant   TournamentParticipant? @relation(fields: [winnerParticipantId], references: [id], name: "MatchWinner")
+
+  // participants MatchParticipant[]
+  // parts        MatchPart[]
+  // events       MatchEvent[]
+
+  // tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  // createdAt DateTime @default(now())
+  // updatedAt DateTime @updatedAt
+
+  // @@index([tournamentId, status])
+// }
+
+model Match {
+  id           String @id @default(cuid())
+
+  tournamentId String?
+  sportCode    SportCode
+
+  // NEW
+  locationId   String
+  playArea     Int
+
+  gameType     GameType
+  partsCount   Int
+
+  status       MatchStatus @default(SCHEDULED)
+  startTime    DateTime?
+  endTime      DateTime?
+
+  servingParticipantId String?
+
+  officialUserId String
+
+  winnerParticipantId String?
+  winnerParticipant   TournamentParticipant? @relation(fields: [winnerParticipantId], references: [id], name: "MatchWinner")
+
+  participants MatchParticipant[]
+  parts        MatchPart[]
+  events       MatchEvent[]
+
+  tournament Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tournamentId, status])
+}
+
+
+model MatchParticipant {
+  id            String @id @default(cuid())
+  matchId       String
+  participantId String
+
+  position Int
+
+  match       Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participant TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, position])
+  @@index([participantId])
+}
+
+model MatchPart {
+  id         String @id @default(cuid())
+  matchId    String
+  partNumber Int
+
+  p1Score Int @default(0)
+  p2Score Int @default(0)
+
+  winnerParticipantId String?
+  winnerParticipant   TournamentParticipant? @relation(fields: [winnerParticipantId], references: [id], name: "MatchPartWinner")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, partNumber])
+}
+
+model MatchEvent {
+  id      String @id @default(cuid())
+  matchId String
+  type    String
+  payload Json
+
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId])
+}
+
+model Asset {
+  id           String    @id @default(cuid())
+  tournamentId String
+  type         AssetType
+
+  url     String
+  altText String?
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId, type])
+}
